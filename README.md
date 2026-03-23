@@ -4,10 +4,10 @@ A responsive, production-ready Next.js dashboard for small shirt-printing busine
 
 ## Included tools
 
-- Background removal endpoint (stub for remove.bg/Clipdrop)
-- Image upscaler endpoint (stub for ESRGAN provider)
-- Raster-to-vector endpoint (stub for Potrace worker)
-- Social media post generator endpoint
+- Background removal endpoint with improved edge matte/feathering
+- Image upscaler endpoint
+- Raster-to-vector endpoint (SVG output)
+- HEX color extractor UI with click-to-sample
 - Quote calculator UI
 - Print readiness checker UI
 

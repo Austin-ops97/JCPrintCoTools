@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Header } from "@/components/header";
 import { Button, Card, Stat } from "@/components/ui";
 
@@ -33,9 +33,11 @@ export default function HomePage() {
   const [colors, setColors] = useState(6);
   const [vectorState, setVectorState] = useState<ApiState>(initialApiState);
 
-  const [theme, setTheme] = useState("spring collection");
-  const [audience, setAudience] = useState("gyms and fitness studios");
-  const [socialState, setSocialState] = useState<ApiState>(initialApiState);
+  const [colorFile, setColorFile] = useState<File | null>(null);
+  const [pickedHex, setPickedHex] = useState<string>("");
+  const [pickedPoint, setPickedPoint] = useState<{ x: number; y: number } | null>(null);
+  const [pickedColors, setPickedColors] = useState<string[]>([]);
+  const colorCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [qty, setQty] = useState(48);
   const [printColors, setPrintColors] = useState(2);
@@ -89,10 +91,8 @@ export default function HomePage() {
     () => (upscaleFile ? URL.createObjectURL(upscaleFile) : ""),
     [upscaleFile],
   );
-  const vectorPreview = useMemo(
-    () => (vectorFile ? URL.createObjectURL(vectorFile) : ""),
-    [vectorFile],
-  );
+  const vectorPreview = useMemo(() => (vectorFile ? URL.createObjectURL(vectorFile) : ""), [vectorFile]);
+  const colorPreview = useMemo(() => (colorFile ? URL.createObjectURL(colorFile) : ""), [colorFile]);
 
   useEffect(() => {
     return () => {
@@ -117,6 +117,49 @@ export default function HomePage() {
       }
     };
   }, [vectorPreview]);
+
+  useEffect(() => {
+    return () => {
+      if (colorPreview) {
+        URL.revokeObjectURL(colorPreview);
+      }
+    };
+  }, [colorPreview]);
+
+  useEffect(() => {
+    if (!colorPreview || !colorCanvasRef.current) {
+      return;
+    }
+    const canvas = colorCanvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, img.width, img.height);
+    };
+    img.src = colorPreview;
+  }, [colorPreview]);
+
+  const handleColorPick = (event: MouseEvent<HTMLImageElement>) => {
+    if (!colorCanvasRef.current) return;
+    const canvas = colorCanvasRef.current;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = Math.floor(((event.clientX - rect.left) / rect.width) * canvas.width);
+    const y = Math.floor(((event.clientY - rect.top) / rect.height) * canvas.height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx || x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return;
+    const [r, g, b] = ctx.getImageData(x, y, 1, 1).data;
+    const toHex = (value: number) => value.toString(16).padStart(2, "0");
+    const hex = `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+    setPickedHex(hex);
+    setPickedPoint({ x, y });
+    setPickedColors((current) => [hex, ...current.filter((c) => c !== hex)].slice(0, 6));
+  };
 
   const downloadLabel = (result: ImageToolResult | null) => (result ? `Download ${result.fileName}` : "Download");
 
@@ -149,6 +192,9 @@ export default function HomePage() {
                 {bgState.loading ? "Processing..." : "Remove Background"}
               </Button>
               {bgState.error ? <p className="text-sm text-red-300">{bgState.error}</p> : null}
+              <p className="text-xs text-neutral-400">
+                Improved matte: adaptive background sampling, soft alpha ramp, anti-fringe edge cleanup.
+              </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 {backgroundPreview ? <img src={backgroundPreview} alt="Original upload" className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2" /> : null}
                 {bgState.result ? <img src={bgState.result.dataUrl} alt="Background removed result" className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2" /> : null}
@@ -234,43 +280,56 @@ export default function HomePage() {
             ) : null}
           </Card>
 
-          <Card title="Social Post Generator" subtitle="Generate polished marketing copy and hashtags">
+          <Card title="HEX Color Extractor" subtitle="Upload an image and click any pixel to get exact HEX">
             <div className="space-y-3">
-              <input value={theme} onChange={(e) => setTheme(e.target.value)} placeholder="Theme" />
-              <input value={audience} onChange={(e) => setAudience(e.target.value)} placeholder="Audience" />
-              <Button
-                onClick={async () => {
-                  setSocialState({ loading: true, result: null, error: "" });
-                  try {
-                    const res = await fetch("/api/social-generate", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ theme, audience }),
-                    });
-                    const json = (await res.json()) as { success: boolean; data?: unknown; error?: string };
-                    if (!res.ok || !json.success) {
-                      setSocialState({ loading: false, result: null, error: json.error ?? "Request failed" });
-                      return;
-                    }
-                    const payload = JSON.stringify(json.data, null, 2);
-                    setSocialState({
-                      loading: false,
-                      result: { fileName: "social-post.txt", mimeType: "text/plain", dataUrl: `data:text/plain,${encodeURIComponent(payload)}` },
-                      error: "",
-                    });
-                  } catch {
-                    setSocialState({ loading: false, result: null, error: "Network error" });
-                  }
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  setColorFile(e.target.files?.[0] ?? null);
+                  setPickedHex("");
+                  setPickedPoint(null);
                 }}
-              >
-                {socialState.loading ? "Generating..." : "Generate Post"}
-              </Button>
+              />
+              <canvas ref={colorCanvasRef} className="hidden" />
+              {colorPreview ? (
+                <img
+                  src={colorPreview}
+                  alt="Color picker source"
+                  onClick={handleColorPick}
+                  className="h-56 w-full rounded-lg border border-white/15 object-contain bg-black p-2"
+                />
+              ) : null}
+              <p className="text-xs text-neutral-400">Tap/click the image to sample a precise color.</p>
             </div>
-            {socialState.error ? <p className="mt-3 text-sm text-red-300">{socialState.error}</p> : null}
-            {socialState.result ? (
-              <a className="inline-block text-sm underline" href={socialState.result.dataUrl} download={socialState.result.fileName}>
-                Download generated post text
-              </a>
+            {pickedHex ? (
+              <div className="mt-3 space-y-2 text-sm text-neutral-200">
+                <p>
+                  Selected: <span className="font-semibold text-white">{pickedHex}</span>
+                  {pickedPoint ? ` at (${pickedPoint.x}, ${pickedPoint.y})` : ""}
+                </p>
+                <div className="h-8 w-24 rounded border border-white/20" style={{ backgroundColor: pickedHex }} />
+                <button
+                  type="button"
+                  className="text-sm underline"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(pickedHex);
+                  }}
+                >
+                  Copy HEX code
+                </button>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {pickedColors.map((hex) => (
+                    <span
+                      key={hex}
+                      className="rounded border border-white/20 px-2 py-1 text-xs"
+                      style={{ backgroundColor: `${hex}22` }}
+                    >
+                      {hex}
+                    </span>
+                  ))}
+                </div>
+              </div>
             ) : null}
           </Card>
 
