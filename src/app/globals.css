@@ -36,10 +36,25 @@ select {
   border-radius: 0.75rem;
   padding: 0.65rem 0.85rem;
   width: 100%;
+  font-size: 0.95rem;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 
 input[type="file"] {
   padding: 0.5rem;
+}
+
+input::placeholder {
+  color: #8d8d8d;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+  background: #090909;
 }
 
 button {

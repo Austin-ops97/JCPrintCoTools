@@ -177,11 +177,12 @@ export default function HomePage() {
   };
 
   const downloadLabel = (result: ImageToolResult | null) => (result ? `Download ${result.fileName}` : "Download");
+  const previewClassName = "h-40 w-full rounded-lg border border-white/15 object-contain bg-black p-2 sm:h-48";
 
   return (
     <div className="min-h-screen">
       <Header />
-      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
+      <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-10">
         <section className="mb-6 grid gap-3 sm:mb-8 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="Active tools" value="7" />
           <Stat label="Recommended DPI" value="300+" />
@@ -189,7 +190,7 @@ export default function HomePage() {
           <Stat label="Deployment" value="GitHub -> Vercel" />
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-2">
+        <section className="grid gap-4 md:gap-5 lg:grid-cols-2">
           <Card title="Background Removal" subtitle="Upload an image and export transparent PNG">
             <div className="space-y-3">
               <input type="file" accept="image/*" onChange={(e) => setBackgroundFile(e.target.files?.[0] ?? null)} />
@@ -211,8 +212,8 @@ export default function HomePage() {
                 Improved matte: adaptive background sampling, soft alpha ramp, anti-fringe edge cleanup.
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
-                {backgroundPreview ? <img src={backgroundPreview} alt="Original upload" className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2" /> : null}
-                {bgState.result ? <img src={bgState.result.dataUrl} alt="Background removed result" className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2" /> : null}
+                {backgroundPreview ? <img src={backgroundPreview} alt="Original upload" className={previewClassName} /> : null}
+                {bgState.result ? <img src={bgState.result.dataUrl} alt="Background removed result" className={previewClassName} /> : null}
               </div>
               {bgState.result ? (
                 <a className="inline-block text-sm underline" href={bgState.result.dataUrl} download={bgState.result.fileName}>
@@ -246,8 +247,8 @@ export default function HomePage() {
             </div>
             {upscaleState.error ? <p className="mt-3 text-sm text-red-300">{upscaleState.error}</p> : null}
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {upscalePreview ? <img src={upscalePreview} alt="Original upload" className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2" /> : null}
-              {upscaleState.result ? <img src={upscaleState.result.dataUrl} alt="Upscaled result" className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2" /> : null}
+              {upscalePreview ? <img src={upscalePreview} alt="Original upload" className={previewClassName} /> : null}
+              {upscaleState.result ? <img src={upscaleState.result.dataUrl} alt="Upscaled result" className={previewClassName} /> : null}
             </div>
             {upscaleState.result ? (
               <div className="mt-2 space-y-1 text-sm text-neutral-300">
@@ -282,8 +283,8 @@ export default function HomePage() {
             </div>
             {vectorState.error ? <p className="mt-3 text-sm text-red-300">{vectorState.error}</p> : null}
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {vectorPreview ? <img src={vectorPreview} alt="Original upload" className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2" /> : null}
-              {vectorState.result ? <img src={vectorState.result.dataUrl} alt="Vector result preview" className="h-48 w-full rounded-lg border border-white/15 object-contain bg-white p-2" /> : null}
+              {vectorPreview ? <img src={vectorPreview} alt="Original upload" className={previewClassName} /> : null}
+              {vectorState.result ? <img src={vectorState.result.dataUrl} alt="Vector result preview" className="h-40 w-full rounded-lg border border-white/15 object-contain bg-white p-2 sm:h-48" /> : null}
             </div>
             {vectorState.result ? (
               <div className="mt-2 space-y-1 text-sm text-neutral-300">
@@ -314,8 +315,8 @@ export default function HomePage() {
             </div>
             {grayscaleState.error ? <p className="mt-3 text-sm text-red-300">{grayscaleState.error}</p> : null}
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {grayscalePreview ? <img src={grayscalePreview} alt="Original upload" className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2" /> : null}
-              {grayscaleState.result ? <img src={grayscaleState.result.dataUrl} alt="Grayscale result" className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2" /> : null}
+              {grayscalePreview ? <img src={grayscalePreview} alt="Original upload" className={previewClassName} /> : null}
+              {grayscaleState.result ? <img src={grayscaleState.result.dataUrl} alt="Grayscale result" className={previewClassName} /> : null}
             </div>
             {grayscaleState.result ? (
               <a className="mt-2 inline-block text-sm underline" href={grayscaleState.result.dataUrl} download={grayscaleState.result.fileName}>
@@ -341,7 +342,7 @@ export default function HomePage() {
                   src={colorPreview}
                   alt="Color picker source"
                   onClick={handleColorPick}
-                  className="h-56 w-full rounded-lg border border-white/15 object-contain bg-black p-2"
+                  className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2 sm:h-56"
                 />
               ) : null}
               <p className="text-xs text-neutral-400">Tap/click the image to sample a precise color.</p>
@@ -379,11 +380,23 @@ export default function HomePage() {
 
           <Card title="Quote Calculator" subtitle="Fast pricing for orders and bulk runs">
             <div className="grid gap-3 sm:grid-cols-3">
-              <input type="number" value={qty} onChange={(e) => setQty(Number(e.target.value))} placeholder="Quantity" />
-              <input type="number" value={printColors} onChange={(e) => setPrintColors(Number(e.target.value))} placeholder="Print colors" />
-              <input type="number" step="0.1" value={garmentCost} onChange={(e) => setGarmentCost(Number(e.target.value))} placeholder="Garment cost" />
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">Quantity</span>
+                <input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} placeholder="Example: 48 shirts" />
+                <span className="block text-xs text-neutral-500">How many total shirts are in the order.</span>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">Print Colors</span>
+                <input type="number" min={1} value={printColors} onChange={(e) => setPrintColors(Number(e.target.value))} placeholder="Example: 2 colors" />
+                <span className="block text-xs text-neutral-500">Number of ink colors in the artwork.</span>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">Garment Cost</span>
+                <input type="number" min={0} step="0.1" value={garmentCost} onChange={(e) => setGarmentCost(Number(e.target.value))} placeholder="Example: 4.50" />
+                <span className="block text-xs text-neutral-500">Your blank shirt cost per piece in USD.</span>
+              </label>
             </div>
-            <p className="mt-4 text-sm text-neutral-300">Estimated retail quote</p>
+            <p className="mt-4 text-sm text-neutral-300">Estimated customer quote (includes margin)</p>
             <p className="text-3xl font-bold text-white">${quote.toLocaleString()}</p>
           </Card>
 
