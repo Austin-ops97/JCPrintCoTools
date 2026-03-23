@@ -38,6 +38,35 @@ function getCornerAverage(
   };
 }
 
+function getCornerDistanceStd(
+  pixels: Uint8Array,
+  width: number,
+  height: number,
+  channels: number,
+  bg: { r: number; g: number; b: number },
+): number {
+  const sampleSize = Math.max(8, Math.floor(Math.min(width, height) * 0.08));
+  const corners = [
+    { x0: 0, y0: 0 },
+    { x0: width - sampleSize, y0: 0 },
+    { x0: 0, y0: height - sampleSize },
+    { x0: width - sampleSize, y0: height - sampleSize },
+  ];
+  const distances: number[] = [];
+  for (const corner of corners) {
+    for (let y = corner.y0; y < corner.y0 + sampleSize; y++) {
+      for (let x = corner.x0; x < corner.x0 + sampleSize; x++) {
+        const i = (y * width + x) * channels;
+        distances.push(colorDistance(pixels[i], pixels[i + 1], pixels[i + 2], bg.r, bg.g, bg.b));
+      }
+    }
+  }
+  if (distances.length === 0) return 0;
+  const mean = distances.reduce((a, b) => a + b, 0) / distances.length;
+  const variance = distances.reduce((sum, d) => sum + (d - mean) * (d - mean), 0) / distances.length;
+  return Math.sqrt(variance);
+}
+
 function smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
 }
@@ -108,9 +137,13 @@ export async function POST(req: Request) {
       distanceMap[i] = colorDistance(data[p], data[p + 1], data[p + 2], bg.r, bg.g, bg.b);
     }
 
-    // Border-connected flood fill avoids eating interior whites.
-    const seedThreshold = 22;
-    const growThreshold = 56;
+    const cornerStd = getCornerDistanceStd(data, width, height, channels, bg);
+
+    // Border-connected flood fill avoids eating interior logo details.
+    // Adaptive thresholds stay conservative for flat backgrounds.
+    const seedThreshold = Math.max(14, Math.min(26, 12 + cornerStd * 0.75));
+    const growThreshold = Math.max(seedThreshold + 10, Math.min(52, 30 + cornerStd * 1.25));
+    const continuityThreshold = Math.max(16, Math.min(34, 18 + cornerStd * 0.6));
     const backgroundMask = new Uint8Array(total);
     const queue = new Int32Array(total);
     let head = 0;
@@ -120,6 +153,23 @@ export async function POST(req: Request) {
       if (backgroundMask[idx] === 1 || distanceMap[idx] > growThreshold) return;
       backgroundMask[idx] = 1;
       queue[tail++] = idx;
+    };
+
+    const canGrowFromTo = (fromIdx: number, toIdx: number): boolean => {
+      if (backgroundMask[toIdx] === 1) return false;
+      if (distanceMap[toIdx] > growThreshold) return false;
+      const fromP = fromIdx * channels;
+      const toP = toIdx * channels;
+      const delta = colorDistance(
+        data[fromP],
+        data[fromP + 1],
+        data[fromP + 2],
+        data[toP],
+        data[toP + 1],
+        data[toP + 2],
+      );
+      // Prevent flood-fill leakage across sharp logo edges.
+      return delta <= continuityThreshold;
     };
 
     for (let x = 0; x < width; x++) {
@@ -139,10 +189,10 @@ export async function POST(req: Request) {
       const idx = queue[head++];
       const x = idx % width;
       const y = Math.floor(idx / width);
-      if (x > 0) enqueue(idx - 1);
-      if (x < width - 1) enqueue(idx + 1);
-      if (y > 0) enqueue(idx - width);
-      if (y < height - 1) enqueue(idx + width);
+      if (x > 0 && canGrowFromTo(idx, idx - 1)) enqueue(idx - 1);
+      if (x < width - 1 && canGrowFromTo(idx, idx + 1)) enqueue(idx + 1);
+      if (y > 0 && canGrowFromTo(idx, idx - width)) enqueue(idx - width);
+      if (y < height - 1 && canGrowFromTo(idx, idx + width)) enqueue(idx + width);
     }
 
     const alphaFloat = new Float32Array(total);

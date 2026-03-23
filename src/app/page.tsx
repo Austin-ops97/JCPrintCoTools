@@ -2,7 +2,7 @@
 
 import { MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Header } from "@/components/header";
-import { Button, Card, Stat } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 
 type ImageToolResult = {
   fileName: string;
@@ -205,13 +205,6 @@ export default function HomePage() {
     <div className="min-h-screen">
       <Header />
       <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-10">
-        <section className="mb-6 grid gap-3 sm:mb-8 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Active tools" value="7" />
-          <Stat label="Recommended DPI" value="300+" />
-          <Stat label="Media workflow" value="Upload > Process > Download" />
-          <Stat label="Deployment" value="GitHub -> Vercel" />
-        </section>
-
         <section className="grid gap-4 md:gap-5 lg:grid-cols-2">
           <Card title="Background Removal" subtitle="Upload an image and export transparent PNG">
             <div className="space-y-3">
