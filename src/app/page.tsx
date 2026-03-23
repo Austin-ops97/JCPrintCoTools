@@ -41,6 +41,7 @@ export default function HomePage() {
   const [pickedPoint, setPickedPoint] = useState<{ x: number; y: number } | null>(null);
   const [crosshairPoint, setCrosshairPoint] = useState<{ x: number; y: number } | null>(null);
   const [pickedColors, setPickedColors] = useState<string[]>([]);
+  const [colorZoom, setColorZoom] = useState(1.6);
   const colorCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorImageRef = useRef<HTMLImageElement | null>(null);
   const [colorImageNaturalSize, setColorImageNaturalSize] = useState({ width: 0, height: 0 });
@@ -363,6 +364,36 @@ export default function HomePage() {
                 }}
               />
               <canvas ref={colorCanvasRef} className="hidden" />
+              <div className="rounded-lg border border-white/15 bg-black/40 p-3">
+                <div className="mb-2 flex items-center justify-between text-xs text-neutral-400">
+                  <span>Zoom for precision</span>
+                  <span>{colorZoom.toFixed(1)}x</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded border border-white/20 px-2 py-1 text-xs"
+                    onClick={() => setColorZoom((z) => Math.max(1, Number((z - 0.2).toFixed(1))))}
+                  >
+                    -
+                  </button>
+                  <input
+                    type="range"
+                    min={1}
+                    max={3}
+                    step={0.1}
+                    value={colorZoom}
+                    onChange={(e) => setColorZoom(Number(e.target.value))}
+                  />
+                  <button
+                    type="button"
+                    className="rounded border border-white/20 px-2 py-1 text-xs"
+                    onClick={() => setColorZoom((z) => Math.min(3, Number((z + 0.2).toFixed(1))))}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
               {colorPreview ? (
                 <div className="relative">
                   <img
@@ -376,7 +407,8 @@ export default function HomePage() {
                         height: e.currentTarget.naturalHeight,
                       });
                     }}
-                    className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2 sm:h-56"
+                    className="w-full rounded-lg border border-white/15 object-contain bg-black p-2"
+                    style={{ height: `${Math.round(220 * colorZoom)}px` }}
                   />
                   {crosshairPoint ? (
                     <>
