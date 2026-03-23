@@ -95,6 +95,55 @@ function hasBackgroundNeighbor(mask: Uint8Array, x: number, y: number, width: nu
   return false;
 }
 
+function fillSmallInteriorHoles(
+  alpha: Float32Array,
+  width: number,
+  height: number,
+  maxArea: number,
+): void {
+  const total = width * height;
+  const visited = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  const holePixels: number[] = [];
+
+  for (let i = 0; i < total; i++) {
+    if (visited[i] === 1 || alpha[i] > 0.03) continue;
+    let head = 0;
+    let tail = 0;
+    let touchesBorder = false;
+    holePixels.length = 0;
+    queue[tail++] = i;
+    visited[i] = 1;
+
+    while (head < tail) {
+      const idx = queue[head++];
+      holePixels.push(idx);
+      const x = idx % width;
+      const y = Math.floor(idx / width);
+      if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
+        touchesBorder = true;
+      }
+
+      const neighbors = [idx - 1, idx + 1, idx - width, idx + width];
+      for (const n of neighbors) {
+        if (n < 0 || n >= total || visited[n] === 1 || alpha[n] > 0.03) continue;
+        const nx = n % width;
+        const ny = Math.floor(n / width);
+        if (Math.abs(nx - x) + Math.abs(ny - y) !== 1) continue;
+        visited[n] = 1;
+        queue[tail++] = n;
+      }
+    }
+
+    // Fill only enclosed small holes to keep logos/details intact.
+    if (!touchesBorder && holePixels.length <= maxArea) {
+      for (const p of holePixels) {
+        alpha[p] = 1;
+      }
+    }
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const formData = await req.formData();
@@ -211,13 +260,16 @@ export async function POST(req: Request) {
       const nearEdge = hasBackgroundNeighbor(backgroundMask, x, y, width, height);
       const distance = distanceMap[i];
 
+      // Critical logo-safety rule:
+      // only soften alpha on pixels adjacent to confirmed background.
+      // Interior pixels remain fully opaque to avoid logo damage.
       let alpha = 255;
-      if (nearEdge || distance < 92) {
+      if (nearEdge) {
         const t = Math.min(1, Math.max(0, (distance - 18) / (92 - 18)));
         alpha = Math.round(255 * smoothstep(t));
       }
 
-      if (alpha < 255) {
+      if (nearEdge && alpha < 255) {
         const a = Math.max(alpha / 255, 0.04);
         const r = data[p];
         const g = data[p + 1];
@@ -268,6 +320,13 @@ export async function POST(req: Request) {
       }
       alphaFloat[i] = a;
       data[i * channels + 3] = Math.round(a * 255);
+    }
+
+    // Protect logos from accidental interior cutouts (eyes/highlights/etc.).
+    const maxHoleArea = Math.max(48, Math.floor(total * 0.0035));
+    fillSmallInteriorHoles(alphaFloat, width, height, maxHoleArea);
+    for (let i = 0; i < total; i++) {
+      data[i * channels + 3] = Math.round(alphaFloat[i] * 255);
     }
 
     let output = await sharp(data, {
