@@ -33,6 +33,9 @@ export default function HomePage() {
   const [colors, setColors] = useState(6);
   const [vectorState, setVectorState] = useState<ApiState>(initialApiState);
 
+  const [grayscaleFile, setGrayscaleFile] = useState<File | null>(null);
+  const [grayscaleState, setGrayscaleState] = useState<ApiState>(initialApiState);
+
   const [colorFile, setColorFile] = useState<File | null>(null);
   const [pickedHex, setPickedHex] = useState<string>("");
   const [pickedPoint, setPickedPoint] = useState<{ x: number; y: number } | null>(null);
@@ -92,6 +95,10 @@ export default function HomePage() {
     [upscaleFile],
   );
   const vectorPreview = useMemo(() => (vectorFile ? URL.createObjectURL(vectorFile) : ""), [vectorFile]);
+  const grayscalePreview = useMemo(
+    () => (grayscaleFile ? URL.createObjectURL(grayscaleFile) : ""),
+    [grayscaleFile],
+  );
   const colorPreview = useMemo(() => (colorFile ? URL.createObjectURL(colorFile) : ""), [colorFile]);
 
   useEffect(() => {
@@ -117,6 +124,14 @@ export default function HomePage() {
       }
     };
   }, [vectorPreview]);
+
+  useEffect(() => {
+    return () => {
+      if (grayscalePreview) {
+        URL.revokeObjectURL(grayscalePreview);
+      }
+    };
+  }, [grayscalePreview]);
 
   useEffect(() => {
     return () => {
@@ -168,7 +183,7 @@ export default function HomePage() {
       <Header />
       <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
         <section className="mb-6 grid gap-3 sm:mb-8 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Active tools" value="6" />
+          <Stat label="Active tools" value="7" />
           <Stat label="Recommended DPI" value="300+" />
           <Stat label="Media workflow" value="Upload > Process > Download" />
           <Stat label="Deployment" value="GitHub -> Vercel" />
@@ -246,7 +261,7 @@ export default function HomePage() {
             ) : null}
           </Card>
 
-          <Card title="Vector Converter" subtitle="Upload JPG/PNG and export downloadable SVG">
+          <Card title="Vector Converter" subtitle="Lossless SVG wrapper keeps source quality unchanged">
             <div className="grid gap-3">
               <input type="file" accept="image/png,image/jpeg,image/webp,image/bmp" onChange={(e) => setVectorFile(e.target.files?.[0] ?? null)} />
               <input type="number" value={colors} min={1} max={12} onChange={(e) => setColors(Number(e.target.value))} placeholder="Color count" />
@@ -277,6 +292,35 @@ export default function HomePage() {
                   {downloadLabel(vectorState.result)}
                 </a>
               </div>
+            ) : null}
+          </Card>
+
+          <Card title="Grayscale Logo" subtitle="Remove all color and export clean grayscale PNG">
+            <div className="grid gap-3">
+              <input type="file" accept="image/*" onChange={(e) => setGrayscaleFile(e.target.files?.[0] ?? null)} />
+              <Button
+                onClick={() => {
+                  if (!grayscaleFile) {
+                    setGrayscaleState({ loading: false, result: null, error: "Please upload an image first." });
+                    return;
+                  }
+                  const formData = new FormData();
+                  formData.append("file", grayscaleFile);
+                  void runImageTool("/api/grayscale", formData, setGrayscaleState);
+                }}
+              >
+                {grayscaleState.loading ? "Processing..." : "Convert to Grayscale"}
+              </Button>
+            </div>
+            {grayscaleState.error ? <p className="mt-3 text-sm text-red-300">{grayscaleState.error}</p> : null}
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {grayscalePreview ? <img src={grayscalePreview} alt="Original upload" className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2" /> : null}
+              {grayscaleState.result ? <img src={grayscaleState.result.dataUrl} alt="Grayscale result" className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2" /> : null}
+            </div>
+            {grayscaleState.result ? (
+              <a className="mt-2 inline-block text-sm underline" href={grayscaleState.result.dataUrl} download={grayscaleState.result.fileName}>
+                {downloadLabel(grayscaleState.result)}
+              </a>
             ) : null}
           </Card>
 

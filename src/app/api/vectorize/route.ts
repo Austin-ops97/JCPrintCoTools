@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 
 export async function POST(req: Request) {
   try {
@@ -9,27 +10,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Image file is required." }, { status: 400 });
     }
     const inputBuffer = Buffer.from(await file.arrayBuffer());
-    const imageBase64 = inputBuffer.toString("base64");
+    const metadata = await sharp(inputBuffer).rotate().metadata();
+    const width = metadata.width ?? 1024;
+    const height = metadata.height ?? 1024;
     const mimeType = file.type || "image/png";
-    const width = Number(formData.get("width")) || 1024;
-    const height = Number(formData.get("height")) || 1024;
+    const imageBase64 = inputBuffer.toString("base64");
     const fileName = file.name.replace(/\.[^/.]+$/, "");
+    // Lossless-preserving SVG wrapper keeps original raster quality intact.
     const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}">
-  <defs>
-    <filter id="mono">
-      <feColorMatrix
-        type="matrix"
-        values="0.3 0.59 0.11 0 0 0.3 0.59 0.11 0 0 0.3 0.59 0.11 0 0 0 0 0 1 0"
-      />
-    </filter>
-  </defs>
   <image
     href="data:${mimeType};base64,${imageBase64}"
     width="${width}"
     height="${height}"
     preserveAspectRatio="xMidYMid meet"
-    filter="url(#mono)"
   />
 </svg>`;
     const svgBase64 = Buffer.from(svg, "utf8").toString("base64");

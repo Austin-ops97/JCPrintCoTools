@@ -42,6 +42,10 @@ function smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
 }
 
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
 function colorDistance(r: number, g: number, b: number, br: number, bg: number, bb: number): number {
   const dr = r - br;
   const dg = g - bg;
@@ -77,7 +81,8 @@ export async function POST(req: Request) {
     if (originalWidth <= 0 || originalHeight <= 0) {
       return NextResponse.json({ success: false, error: "Invalid source image." }, { status: 400 });
     }
-    const supersample = Math.max(originalWidth, originalHeight) <= 1400 ? 2 : 1;
+    const maxSide = Math.max(originalWidth, originalHeight);
+    const supersample = maxSide <= 900 ? 3 : maxSide <= 1800 ? 2 : 1;
     const workWidth = originalWidth * supersample;
     const workHeight = originalHeight * supersample;
 
@@ -140,11 +145,14 @@ export async function POST(req: Request) {
       if (y < height - 1) enqueue(idx + width);
     }
 
+    const alphaFloat = new Float32Array(total);
+
     // Build a soft alpha edge and decontaminate bright fringe colors.
     for (let i = 0; i < total; i++) {
       const p = i * channels;
       if (backgroundMask[i] === 1) {
         data[p + 3] = 0;
+        alphaFloat[i] = 0;
         continue;
       }
 
@@ -172,30 +180,44 @@ export async function POST(req: Request) {
         data[p + 2] = Math.round(cleanB);
       }
 
-      data[p + 3] = alpha;
+      const af = clamp01(alpha / 255);
+      alphaFloat[i] = af;
+      data[p + 3] = Math.round(af * 255);
     }
 
-    // Slight alpha smoothing without blurring full artwork.
-    const alphaCopy = new Uint8Array(total);
-    for (let i = 0; i < total; i++) {
-      alphaCopy[i] = data[i * channels + 3];
-    }
+    // Edge-only alpha smoothing then re-sharpen matte for crisp but anti-aliased lines.
+    const alphaCopy = new Float32Array(alphaFloat);
     for (let y = 1; y < height - 1; y++) {
       for (let x = 1; x < width - 1; x++) {
         const idx = y * width + x;
         if (backgroundMask[idx] === 1) continue;
         if (!hasBackgroundNeighbor(backgroundMask, x, y, width, height)) continue;
-        let sum = 0;
-        let count = 0;
+        let weighted = 0;
+        let weightSum = 0;
         for (let oy = -1; oy <= 1; oy++) {
           for (let ox = -1; ox <= 1; ox++) {
             const n = (y + oy) * width + (x + ox);
-            sum += alphaCopy[n];
-            count += 1;
+            const w = ox === 0 && oy === 0 ? 4 : ox === 0 || oy === 0 ? 2 : 1;
+            weighted += alphaCopy[n] * w;
+            weightSum += w;
           }
         }
-        data[idx * channels + 3] = Math.round(sum / count);
+        alphaFloat[idx] = weighted / weightSum;
       }
+    }
+
+    // Matte shaping: suppress tiny halos, keep crisp high-confidence foreground.
+    for (let i = 0; i < total; i++) {
+      let a = alphaFloat[i];
+      if (a < 0.03) a = 0;
+      else if (a > 0.985) a = 1;
+      else {
+        // Increase edge contrast while preserving anti-alias transitions.
+        const t = clamp01((a - 0.06) / 0.9);
+        a = smoothstep(t);
+      }
+      alphaFloat[i] = a;
+      data[i * channels + 3] = Math.round(a * 255);
     }
 
     let output = await sharp(data, {
