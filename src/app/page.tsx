@@ -39,8 +39,11 @@ export default function HomePage() {
   const [colorFile, setColorFile] = useState<File | null>(null);
   const [pickedHex, setPickedHex] = useState<string>("");
   const [pickedPoint, setPickedPoint] = useState<{ x: number; y: number } | null>(null);
+  const [crosshairPoint, setCrosshairPoint] = useState<{ x: number; y: number } | null>(null);
   const [pickedColors, setPickedColors] = useState<string[]>([]);
   const colorCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const colorImageRef = useRef<HTMLImageElement | null>(null);
+  const [colorImageNaturalSize, setColorImageNaturalSize] = useState({ width: 0, height: 0 });
 
   const [qty, setQty] = useState(48);
   const [printColors, setPrintColors] = useState(2);
@@ -161,11 +164,28 @@ export default function HomePage() {
   }, [colorPreview]);
 
   const handleColorPick = (event: MouseEvent<HTMLImageElement>) => {
-    if (!colorCanvasRef.current) return;
+    if (!colorCanvasRef.current || !colorImageRef.current) return;
     const canvas = colorCanvasRef.current;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = Math.floor(((event.clientX - rect.left) / rect.width) * canvas.width);
-    const y = Math.floor(((event.clientY - rect.top) / rect.height) * canvas.height);
+    const imageElement = colorImageRef.current;
+    const rect = imageElement.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
+    const naturalWidth = colorImageNaturalSize.width || canvas.width;
+    const naturalHeight = colorImageNaturalSize.height || canvas.height;
+
+    const scale = Math.min(rect.width / naturalWidth, rect.height / naturalHeight);
+    const renderedWidth = naturalWidth * scale;
+    const renderedHeight = naturalHeight * scale;
+    const offsetX = (rect.width - renderedWidth) / 2;
+    const offsetY = (rect.height - renderedHeight) / 2;
+
+    const localX = clickX - offsetX;
+    const localY = clickY - offsetY;
+
+    if (localX < 0 || localY < 0 || localX > renderedWidth || localY > renderedHeight) return;
+
+    const x = Math.floor((localX / renderedWidth) * canvas.width);
+    const y = Math.floor((localY / renderedHeight) * canvas.height);
     const ctx = canvas.getContext("2d");
     if (!ctx || x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return;
     const [r, g, b] = ctx.getImageData(x, y, 1, 1).data;
@@ -173,6 +193,7 @@ export default function HomePage() {
     const hex = `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
     setPickedHex(hex);
     setPickedPoint({ x, y });
+    setCrosshairPoint({ x: clickX, y: clickY });
     setPickedColors((current) => [hex, ...current.filter((c) => c !== hex)].slice(0, 6));
   };
 
@@ -265,7 +286,11 @@ export default function HomePage() {
           <Card title="Vector Converter" subtitle="Lossless SVG wrapper keeps source quality unchanged">
             <div className="grid gap-3">
               <input type="file" accept="image/png,image/jpeg,image/webp,image/bmp" onChange={(e) => setVectorFile(e.target.files?.[0] ?? null)} />
-              <input type="number" value={colors} min={1} max={12} onChange={(e) => setColors(Number(e.target.value))} placeholder="Color count" />
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">Vector color target</span>
+                <input type="number" value={colors} min={1} max={12} onChange={(e) => setColors(Number(e.target.value))} placeholder="Example: 6 colors" />
+                <span className="block text-xs text-neutral-500">Current output is quality-preserving SVG wrapper; this value is shown as metadata.</span>
+              </label>
               <Button
                 onClick={() => {
                   if (!vectorFile) {
@@ -334,18 +359,44 @@ export default function HomePage() {
                   setColorFile(e.target.files?.[0] ?? null);
                   setPickedHex("");
                   setPickedPoint(null);
+                  setCrosshairPoint(null);
                 }}
               />
               <canvas ref={colorCanvasRef} className="hidden" />
               {colorPreview ? (
-                <img
-                  src={colorPreview}
-                  alt="Color picker source"
-                  onClick={handleColorPick}
-                  className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2 sm:h-56"
-                />
+                <div className="relative">
+                  <img
+                    ref={colorImageRef}
+                    src={colorPreview}
+                    alt="Color picker source"
+                    onClick={handleColorPick}
+                    onLoad={(e) => {
+                      setColorImageNaturalSize({
+                        width: e.currentTarget.naturalWidth,
+                        height: e.currentTarget.naturalHeight,
+                      });
+                    }}
+                    className="h-48 w-full rounded-lg border border-white/15 object-contain bg-black p-2 sm:h-56"
+                  />
+                  {crosshairPoint ? (
+                    <>
+                      <div
+                        className="pointer-events-none absolute h-7 w-px bg-white/90"
+                        style={{ left: `${crosshairPoint.x}px`, top: `${crosshairPoint.y - 14}px` }}
+                      />
+                      <div
+                        className="pointer-events-none absolute h-px w-7 bg-white/90"
+                        style={{ left: `${crosshairPoint.x - 14}px`, top: `${crosshairPoint.y}px` }}
+                      />
+                      <div
+                        className="pointer-events-none absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-black"
+                        style={{ left: `${crosshairPoint.x}px`, top: `${crosshairPoint.y}px` }}
+                      />
+                    </>
+                  ) : null}
+                </div>
               ) : null}
-              <p className="text-xs text-neutral-400">Tap/click the image to sample a precise color.</p>
+              <p className="text-xs text-neutral-400">Tap/click the image to sample a precise color. Crosshairs show the exact sampled location.</p>
             </div>
             {pickedHex ? (
               <div className="mt-3 space-y-2 text-sm text-neutral-200">
